@@ -1,1 +1,433 @@
+```html
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SİSTEM PROTOKOLÜ: SAHA OPERASYONU</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body {
+            background-color: #050505;
+            color: #0f0;
+            font-family: 'VT323', monospace;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            text-shadow: 0 0 5px #0f0;
+        }
+
+        /* CRT Scanline Effect */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%,
+                rgba(0,0,0,0.2)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.6;
+        }
+
+        /* Screen Flicker */
+        .flicker {
+            animation: flicker 0.15s infinite;
+            pointer-events: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 255, 0, 0.02);
+            z-index: 49;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.9; }
+            50% { opacity: 1; }
+            100% { opacity: 0.9; }
+        }
+
+        /* Glitch text effect */
+        .glitch-text {
+            animation: glitch 1s linear infinite;
+        }
+
+        @keyframes glitch {
+            2%, 64% { transform: translate(2px,0) skew(0deg); }
+            4%, 60% { transform: translate(-2px,0) skew(0deg); }
+            62% { transform: translate(0,0) skew(5deg); }
+        }
+
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #0f0;
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            color: #0f0;
+            outline: none;
+            font-family: 'VT323', monospace;
+            text-transform: uppercase;
+            width: 100%;
+            text-shadow: 0 0 5px #0f0;
+        }
+        
+        input::placeholder {
+            color: #050;
+        }
+
+        .crt-overlay {
+            box-shadow: inset 0 0 100px rgba(0,255,0,0.1);
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 48;
+        }
+
+        .btn-terminal {
+            border: 1px solid #0f0;
+            background: rgba(0, 255, 0, 0.1);
+            color: #0f0;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .btn-terminal:hover {
+            background: #0f0;
+            color: #000;
+            box-shadow: 0 0 15px #0f0;
+        }
+        
+        .btn-terminal:disabled {
+            border-color: #050;
+            color: #050;
+            background: transparent;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body class="relative">
+
+    <div class="scanlines"></div>
+    <div class="flicker"></div>
+    <div class="crt-overlay"></div>
+
+    <div id="app" class="p-6 md:p-12 h-full flex flex-col max-w-4xl mx-auto relative z-10 overflow-y-auto text-xl md:text-2xl">
+        <!-- JS will inject content here -->
+    </div>
+
+    <script>
+        const app = document.getElementById('app');
+        
+        // --- LORE DATA ---
+        const loreData = {
+            kaan: [
+                "YASİN BUDAK’A RESMÎ BİLDİRİ",
+                "",
+                "Bu metin, sıradan bir mesaj değildir.",
+                "Bu, gündüz vakti yürürlüğe giren kritik bir çağrı protokolüdür.",
+                "",
+                "Yarın, Ata ile birlikte uzun bir aradan sonra yeniden oyun sahasına çıkıyoruz. Bu organizasyon, basit bir eğlence faaliyeti değil; denge, uyum ve sistem bütünlüğü operasyonudur.",
+                "",
+                "Senin yokluğun bu yapıyı doğrudan etkiler.",
+                "",
+                "Eğer katılım sağlamazsan:",
+                "- Takım dengesi bozulur",
+                "- Oyun akışı çöker",
+                "- Tarihsel süreklilik zarar görür",
+                "",
+                "Ve daha da önemlisi…",
+                "Aykut Elmas bu durumu öğrendiği anda ciddi şekilde rahatsız olacaktır.",
+                "",
+                "Bu, artık kişisel bir mesele olmaktan çıkmıştır.",
+                "Bu bir zorunlu katılım çağrısıdır.",
+                "",
+                "Güneş doğacak. Gün başlayacak. Sistem aktif olacak.",
+                "Ve sen ya sistemin bir parçası olacaksın… ya da eksikliğiyle anılacaksın.",
+                "",
+                "Seçim sana ait değil.",
+                "Gerçeklik zaten kararını vermiş durumda."
+            ],
+            yasin: [
+                "GÖNDEREN: YASİN BUDAK",
+                "DURUM: PROTOKOL ONAYLANDI",
+                "",
+                "Protokol tarafımca alınmış, analiz edilmiş ve onaylanmıştır.",
+                "",
+                "Yarın gerçekleşecek operasyon kapsamında sistem bütünlüğünün korunması adına gerekli katılım sağlanacaktır.",
+                "",
+                "Ata ile yeniden aynı sahada bulunmak, yalnızca bir oyun değil; geçmişten gelen düzenin yeniden aktive edilmesi anlamına gelmektedir. Bu nedenle süreç, maksimum uyum ve tam konsantrasyon ile yürütülecektir.",
+                "",
+                "Belirtilen risk senaryoları değerlendirilmiştir:",
+                "[+] Takım dengesi korunacak.",
+                "[+] Oyun akışı kesintiye uğramayacak.",
+                "[+] Tarihsel süreklilik sürdürülecek.",
+                "",
+                "Ayrıca, Aykut Elmas’ın olası rahatsızlık durumu da göz önünde bulundurulmuş ve kriz ihtimali ortadan kaldırılmıştır.",
+                "",
+                "Güneş doğduğunda sistem aktif olacak.",
+                "Ve ben, eksik kalan taraf değil; doğrudan sistemin çalışan parçası olarak sahada olacağım.",
+                "",
+                "Katılım kesinleşmiştir."
+            ],
+            arda: [
+                "GÖNDEREN: ARDA",
+                "DURUM: SİSTEM BAĞLANTISI KURULDU",
+                "",
+                "Protokol çağrısı tarafıma ulaşmış, çok katmanlı değerlendirme sürecinden geçirilmiş ve resmi olarak onaylanmıştır.",
+                "",
+                "Uzun süredir pasif durumda bulunan sistemin yeniden aktif edileceği bu operasyonun sıradan bir buluşma olmadığı açık şekilde anlaşılmıştır. Yarın gerçekleşecek saha birleşimi; yalnızca oyun oynama amacı taşımamakta, aynı zamanda geçmişten gelen düzenin, ekip senkronizasyonunun ve unutulmuş koordinasyonun yeniden kurulmasını temsil etmektedir.",
+                "",
+                "Bu sebeple gerekli tüm hazırlıklar başlatılmıştır.",
+                "> Enerji seviyesi optimize edildi.",
+                "> Zihinsel denge stabil hale getirildi.",
+                "> Operasyon sırasında oluşabilecek kaos senaryolarına karşı önlemler alınmıştır.",
+                "",
+                "Belirtilen tehdit unsurları detaylı şekilde analiz edilmiştir:",
+                "[OK] Takım dengesi korunacaktır.",
+                "[OK] Oyun akışı sekteye uğramayacaktır.",
+                "[OK] Tarihsel süreklilik devam edecektir.",
+                "[OK] Sistemde boşluk oluşmasına izin verilmeyecektir.",
+                "",
+                "Ayrıca Aykut Elmas faktörü özel olarak değerlendirilmiş, olası moral çöküşü ve evrensel huzursuzluk ihtimali başarıyla engellenmiştir. Kamu düzeninin korunması adına katılım artık yalnızca bireysel tercih değil, kolektif zorunluluk statüsüne geçmiştir.",
+                "",
+                "Güneş yükseldiğinde süreç başlayacak.",
+                "Saha aktif hale gelecek.",
+                "Sesler yükselecek.",
+                "Ve ben orada olacağım.",
+                "",
+                "Eksik kalan kişi olarak değil…",
+                "Sistemin doğrudan çalışan, denge sağlayan ve operasyonu sürdüren ana parçalarından biri olarak.",
+                "",
+                "Katılım kesinleşmiştir.",
+                "Protokol uygulanacaktır.",
+                "Geri dönüş yoktur."
+            ]
+        };
+
+        // --- STATE ---
+        let unlockedFiles = {
+            kaan: false,
+            yasin: false,
+            arda: false
+        };
+        let isTyping = false;
+
+        // --- AUDIO (Simulated via AudioContext) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playBeep(freq = 800, duration = 0.05, vol = 0.05) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        // --- UTILS ---
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+        async function typeText(element, textArray, speed = 20) {
+            isTyping = true;
+            element.innerHTML = '';
+            
+            for (let i = 0; i < textArray.length; i++) {
+                const line = textArray[i];
+                const lineDiv = document.createElement('div');
+                lineDiv.className = 'min-h-[1.5rem] mb-1';
+                element.appendChild(lineDiv);
+
+                for (let j = 0; j < line.length; j++) {
+                    lineDiv.innerHTML += line.charAt(j);
+                    if (j % 3 === 0) playBeep(600 + Math.random() * 200, 0.02, 0.02); // subtle typing sound
+                    // Scroll to bottom
+                    app.scrollTop = app.scrollHeight;
+                    await sleep(speed);
+                }
+                await sleep(speed * 10); // pause at end of line
+            }
+            isTyping = false;
+        }
+
+        // --- VIEWS ---
+
+        async function renderBoot() {
+            app.innerHTML = `<div id="bootText"></div><span class="cursor-blink">_</span>`;
+            const bootText = document.getElementById('bootText');
+            
+            const bootSequence = [
+                "SİSTEM BAŞLATILIYOR...",
+                "BELLEK TESTİ: OK",
+                "AĞ BAĞLANTISI: GÜVENLİ KANAL OLUŞTURULDU",
+                "AYKUT_ELMAS_PROTOKOLÜ.sys YÜKLENİYOR...",
+                "UYARI: ANOMALİ TESPİT EDİLDİ.",
+                "YETKİLENDİRME GEREKLİ."
+            ];
+
+            await typeText(bootText, bootSequence, 30);
+            await sleep(500);
+            renderLogin();
+        }
+
+        function renderLogin() {
+            app.innerHTML = `
+                <div class="mb-4">
+                    <p class="text-red-500 glitch-text font-bold">>>> GİZLİ TERMİNALE ERİŞİM SAĞLANDI <<<</p>
+                    <br>
+                    <p>LÜTFEN KİMLİĞİNİZİ DOĞRULAYIN.</p>
+                    <p>SADECE YETKİLİ OPERASYON YÖNETİCİSİ GİRİŞ YAPABİLİR.</p>
+                </div>
+                <div class="flex items-center mt-4">
+                    <span class="mr-2">YÖNETİCİ ADI: </span>
+                    <input type="text" id="loginInput" autocomplete="off" autofocus class="border-b border-green-500 bg-transparent w-48 text-green-500 outline-none">
+                    <span class="cursor-blink ml-1">_</span>
+                </div>
+                <div id="loginError" class="text-red-500 mt-4 hidden">YETKİ REDDEDİLDİ. GEÇERSİZ KİMLİK.</div>
+            `;
+
+            const input = document.getElementById('loginInput');
+            input.focus();
+            
+            // Keep focus
+            document.addEventListener('click', () => {
+                if(document.getElementById('loginInput')) input.focus();
+            });
+
+            input.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    const val = input.value.trim().toLowerCase();
+                    if (val === 'ata') {
+                        playBeep(1200, 0.1, 0.1);
+                        app.innerHTML = `<div class="text-green-400 mt-10">KİMLİK DOĞRULANDI. HOŞ GELDİNİZ, YÖNETİCİ ATA.<br>SİSTEME BAĞLANILIYOR...</div>`;
+                        await sleep(1500);
+                        renderDashboard();
+                    } else {
+                        playBeep(200, 0.3, 0.1);
+                        document.getElementById('loginError').classList.remove('hidden');
+                        input.value = '';
+                    }
+                }
+            });
+        }
+
+        function renderDashboard() {
+            const allUnlocked = unlockedFiles.kaan && unlockedFiles.yasin && unlockedFiles.arda;
+            
+            let html = `
+                <div class="border-b border-green-700 pb-4 mb-6">
+                    <h1 class="text-3xl font-bold glitch-text">OPERASYON MERKEZİ</h1>
+                    <p class="text-sm">KULLANICI: ATA | DURUM: <span class="${allUnlocked ? 'text-green-500' : 'text-yellow-500'}">${allUnlocked ? 'TAM SENKRONİZASYON' : 'BEKLEMEDE'}</span></p>
+                </div>
+                <p class="mb-6">Aşağıdaki saha birleşimi protokollerini inceleyin.</p>
+                
+                <div class="flex flex-col gap-4 max-w-md">
+            `;
+
+            // KAAN
+            html += `
+                <button onclick="openLog('kaan')" class="btn-terminal p-4 text-left flex justify-between items-center">
+                    <span>[1] ÇAĞRI PROTOKOLÜ (KAAN)</span>
+                    <span class="text-xs ${unlockedFiles.kaan ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.kaan ? 'OKUNDU' : 'YENİ'} ]</span>
+                </button>
+            `;
+
+            // YASIN
+            html += `
+                <button onclick="openLog('yasin')" class="btn-terminal p-4 text-left flex justify-between items-center">
+                    <span>[2] SİSTEM BÜTÜNLÜĞÜ (YASİN)</span>
+                    <span class="text-xs ${unlockedFiles.yasin ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.yasin ? 'OKUNDU' : 'YENİ'} ]</span>
+                </button>
+            `;
+
+            // ARDA
+            html += `
+                <button onclick="openLog('arda')" class="btn-terminal p-4 text-left flex justify-between items-center">
+                    <span>[3] KOLEKTİF ZORUNLULUK (ARDA)</span>
+                    <span class="text-xs ${unlockedFiles.arda ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.arda ? 'OKUNDU' : 'YENİ'} ]</span>
+                </button>
+            `;
+
+            html += `</div>`;
+
+            if (allUnlocked) {
+                html += `
+                    <div class="mt-12 p-6 border-2 border-green-500 bg-green-900 bg-opacity-20 animate-pulse">
+                        <h2 class="text-2xl font-bold text-green-400 mb-2">>>> TÜM BİLDİRİLER ONAYLANDI <<<</h2>
+                        <p>SİSTEM BÜTÜNLÜĞÜ %100 SAĞLANDI.</p>
+                        <p>TAKIM DENGESİ: OPTİMUM.</p>
+                        <p class="text-red-400 font-bold mt-2">AYKUT ELMAS RİSKİ: SIFIRLANDI.</p>
+                        <br>
+                        <p class="text-3xl glitch-text">SAHAYA ÇIKMAYA HAZIRIZ, ATA.</p>
+                    </div>
+                `;
+            }
+
+            app.innerHTML = html;
+        }
+
+        async function openLog(logName) {
+            if (isTyping) return;
+            
+            app.innerHTML = `
+                <div class="mb-6 flex justify-between items-center border-b border-green-700 pb-2">
+                    <span class="text-sm text-gray-400">ŞİFRELİ METİN ÇÖZÜLÜYOR...</span>
+                </div>
+                <div id="logContent" class="whitespace-pre-wrap mb-8"></div>
+                <button id="backBtn" class="btn-terminal py-2 px-6 hidden" onclick="renderDashboard()">[ ANA EKRANA DÖN ]</button>
+            `;
+
+            const logContent = document.getElementById('logContent');
+            const backBtn = document.getElementById('backBtn');
+
+            await typeText(logContent, loreData[logName], 15);
+            
+            unlockedFiles[logName] = true;
+            backBtn.classList.remove('hidden');
+        }
+
+        // Start App
+        window.onload = renderBoot;
+
+    </script>
+</body>
+</html>
+
+```
 
