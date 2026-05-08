@@ -13,15 +13,14 @@
             color: #0f0;
             font-family: 'VT323', monospace;
             margin: 0;
+            /* FIX #1: removed overflow:hidden from body so inner scroll containers can work */
             height: 100vh;
-            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             text-shadow: 0 0 5px #0f0;
-            transform: perspective(1500px) rotateX(3deg) scale(1.05);
-            transform-origin: center bottom;
-            border-radius: 50% / 30%;
         }
 
-        /* CRT Scanline Effect */
         .scanlines {
             position: fixed;
             top: 0;
@@ -41,7 +40,6 @@
             opacity: 0.6;
         }
 
-        /* Screen Flicker */
         .flicker {
             animation: flicker 0.15s infinite;
             pointer-events: none;
@@ -60,7 +58,6 @@
             100% { opacity: 0.9; }
         }
 
-        /* Glitch text effect */
         .glitch-text {
             animation: glitch 1s linear infinite;
         }
@@ -80,16 +77,9 @@
             50% { opacity: 0; }
         }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #000;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #0f0;
-        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #0f0; }
 
         input {
             background: transparent;
@@ -101,14 +91,12 @@
             width: 100%;
             text-shadow: 0 0 5px #0f0;
         }
-        
-        input::placeholder {
-            color: #050;
-        }
+
+        input::placeholder { color: #050; }
 
         .crt-overlay {
             box-shadow: inset 0 0 100px rgba(0,255,0,0.1);
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             right: 0;
@@ -120,6 +108,8 @@
         .tv-shell {
             position: relative;
             width: min(100%, 1100px);
+            /* FIX #2: give the shell a fixed height so inner scroll works */
+            height: 90vh;
             margin: 0 auto;
             padding: 2rem;
             border: 4px solid rgba(0,255,0,0.65);
@@ -128,6 +118,8 @@
             box-shadow: 0 0 80px rgba(0,255,0,0.25), inset 0 0 60px rgba(0,255,0,0.08);
             overflow: hidden;
             z-index: 10;
+            display: flex;
+            flex-direction: column;
         }
 
         .tv-shell::before,
@@ -143,15 +135,8 @@
             box-shadow: inset 0 0 10px rgba(0,255,0,0.25);
         }
 
-        .tv-shell::before {
-            top: 8px;
-            width: 60%;
-        }
-
-        .tv-shell::after {
-            bottom: 8px;
-            width: 50%;
-        }
+        .tv-shell::before { top: 8px; width: 60%; }
+        .tv-shell::after  { bottom: 8px; width: 50%; }
 
         .tv-panel {
             position: relative;
@@ -160,7 +145,28 @@
             padding: 1.5rem;
             background: rgba(0,0,0,0.92);
             box-shadow: inset 0 0 50px rgba(0,255,0,0.08);
+            /* FIX #2 cont.: panel fills shell and scrolls internally */
+            flex: 1;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
+            /* FIX #7: transition defined on the element itself, not only in compound selector */
+            transition: transform 0.8s ease-in, opacity 0.8s ease-in, filter 0.8s ease-in;
+        }
+
+        /* FIX #7: power-off now works because transition is declared above on .tv-panel */
+        .tv-shell.power-off .tv-panel {
+            transform: scaleY(0.15) translateY(35%);
+            opacity: 0.15;
+            filter: blur(1px);
+        }
+
+        #app {
+            /* FIX #2 cont.: #app is the true scroll container */
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 2rem;
+            font-size: clamp(1rem, 2vw, 1.4rem);
         }
 
         .tv-screen-glow {
@@ -187,9 +193,7 @@
             z-index: 60;
         }
 
-        .tv-close-overlay.active {
-            opacity: 1;
-        }
+        .tv-close-overlay.active { opacity: 1; }
 
         .tv-close-screen {
             position: absolute;
@@ -205,13 +209,6 @@
             position: relative;
             z-index: 61;
             max-width: 90%;
-        }
-
-        .tv-shell.power-off .tv-panel {
-            transform: scaleY(0.15) translateY(35%);
-            opacity: 0.15;
-            filter: blur(1px);
-            transition: transform 0.8s ease-in, opacity 0.8s ease-in, filter 0.8s ease-in;
         }
 
         @keyframes tvstatic {
@@ -232,7 +229,7 @@
             color: #000;
             box-shadow: 0 0 15px #0f0;
         }
-        
+
         .btn-terminal:disabled {
             border-color: #050;
             color: #050;
@@ -242,7 +239,7 @@
         }
     </style>
 </head>
-<body class="relative">
+<body>
 
     <div class="scanlines"></div>
     <div class="flicker"></div>
@@ -250,21 +247,19 @@
 
     <div class="tv-shell">
         <div class="tv-panel">
-            <div id="app" class="p-6 md:p-12 h-full flex flex-col max-w-4xl mx-auto relative z-10 overflow-y-auto text-xl md:text-2xl">
-                <!-- JS will inject content here -->
-            </div>
+            <div id="app"></div>
             <div class="tv-screen-glow"></div>
         </div>
     </div>
 
     <script>
         const app = document.getElementById('app');
-        
+
         // --- LORE DATA ---
         const loreData = {
             kaan: [
                 "GÖNDEREN: KAAN OĞUZ",
-                "YASİN BUDAK’A RESMÎ BİLDİRİ",
+                "YASİN BUDAK'A RESMÎ BİLDİRİ",
                 "",
                 "Bu metin, sıradan bir mesaj değildir.",
                 "Bu, gündüz vakti yürürlüğe giren kritik bir çağrı protokolüdür.",
@@ -305,7 +300,7 @@
                 "[+] Oyun akışı kesintiye uğramayacak.",
                 "[+] Tarihsel süreklilik sürdürülecek.",
                 "",
-                "Ayrıca, Aykut Elmas’ın olası rahatsızlık durumu da göz önünde bulundurulmuş ve kriz ihtimali ortadan kaldırılmıştır.",
+                "Ayrıca, Aykut Elmas'ın olası rahatsızlık durumu da göz önünde bulundurulmuş ve kriz ihtimali ortadan kaldırılmıştır.",
                 "",
                 "Güneş doğduğunda sistem aktif olacak.",
                 "Ve ben, eksik kalan taraf değil; doğrudan sistemin çalışan parçası olarak sahada olacağım.",
@@ -348,27 +343,38 @@
         };
 
         // --- STATE ---
-        let unlockedFiles = {
-            kaan: false,
-            yasin: false,
-            arda: false
-        };
+        let unlockedFiles = { kaan: false, yasin: false, arda: false };
         let isTyping = false;
 
-        // --- AUDIO (Simulated via AudioContext) ---
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // FIX #3: track the click listener so we can remove it when leaving the login view
+        let loginFocusListener = null;
+
+        // FIX #5: AudioContext created lazily on first user gesture, not at module load
+        let audioCtx = null;
+        function getAudioCtx() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioCtx;
+        }
+
         function playBeep(freq = 800, duration = 0.05, vol = 0.05) {
-            if(audioCtx.state === 'suspended') audioCtx.resume();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.type = 'square';
-            oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + duration);
+            try {
+                const ctx = getAudioCtx();
+                if (ctx.state === 'suspended') ctx.resume();
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
+                gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                oscillator.start();
+                oscillator.stop(ctx.currentTime + duration);
+            } catch(e) {
+                // Audio not critical — silently ignore if blocked
+            }
         }
 
         // --- UTILS ---
@@ -377,7 +383,7 @@
         async function typeText(element, textArray, speed = 20) {
             isTyping = true;
             element.innerHTML = '';
-            
+
             for (let i = 0; i < textArray.length; i++) {
                 const line = textArray[i];
                 const lineDiv = document.createElement('div');
@@ -386,14 +392,22 @@
 
                 for (let j = 0; j < line.length; j++) {
                     lineDiv.innerHTML += line.charAt(j);
-                    if (j % 3 === 0) playBeep(600 + Math.random() * 200, 0.02, 0.02); // subtle typing sound
-                    // Scroll to bottom
+                    if (j % 3 === 0) playBeep(600 + Math.random() * 200, 0.02, 0.02);
+                    // FIX #6: scroll the correct container (#app), not body
                     app.scrollTop = app.scrollHeight;
                     await sleep(speed);
                 }
-                await sleep(speed * 10); // pause at end of line
+                await sleep(speed * 10);
             }
             isTyping = false;
+        }
+
+        // FIX #3: helper to cleanly remove the login focus listener
+        function removeLoginFocusListener() {
+            if (loginFocusListener) {
+                document.removeEventListener('click', loginFocusListener);
+                loginFocusListener = null;
+            }
         }
 
         // --- VIEWS ---
@@ -401,7 +415,7 @@
         async function renderBoot() {
             app.innerHTML = `<div id="bootText"></div><span class="cursor-blink">_</span>`;
             const bootText = document.getElementById('bootText');
-            
+
             const bootSequence = [
                 "SİSTEM BAŞLATILIYOR...",
                 "BELLEK TESTİ: OK",
@@ -417,9 +431,12 @@
         }
 
         function renderLogin() {
+            // FIX #3: clean up any previous listener before creating a new one
+            removeLoginFocusListener();
+
             app.innerHTML = `
                 <div class="mb-4">
-                    <p class="text-red-500 glitch-text font-bold">>>> GİZLİ TERMİNALE ERİŞİM SAĞLANDI <<<</p>
+                    <p class="text-red-500 glitch-text font-bold">&gt;&gt;&gt; GİZLİ TERMİNALE ERİŞİM SAĞLANDI &lt;&lt;&lt;</p>
                     <br>
                     <p>LÜTFEN KİMLİĞİNİZİ DOĞRULAYIN.</p>
                     <p>SADECE YETKİLİ OPERASYON YÖNETİCİSİ GİRİŞ YAPABİLİR.</p>
@@ -434,23 +451,28 @@
 
             const input = document.getElementById('loginInput');
             input.focus();
-            
-            // Keep focus
-            document.addEventListener('click', () => {
-                if(document.getElementById('loginInput')) input.focus();
-            });
+
+            // FIX #3: store reference so it can be removed when navigating away
+            loginFocusListener = () => {
+                const el = document.getElementById('loginInput');
+                if (el) el.focus();
+            };
+            document.addEventListener('click', loginFocusListener);
 
             input.addEventListener('keydown', async (e) => {
                 if (e.key === 'Enter') {
                     const val = input.value.trim().toLowerCase();
                     if (val === 'zaz') {
+                        // FIX #3: remove listener before leaving login view
+                        removeLoginFocusListener();
                         playBeep(1200, 0.1, 0.1);
                         app.innerHTML = `<div class="text-green-400 mt-10">KİMLİK DOĞRULANDI. HOŞ GELDİNİZ, YÖNETİCİ ATA.<br>SİSTEME BAĞLANILIYOR...</div>`;
                         await sleep(1500);
                         renderDashboard();
                     } else {
                         playBeep(200, 0.3, 0.1);
-                        document.getElementById('loginError').classList.remove('hidden');
+                        const errEl = document.getElementById('loginError');
+                        if (errEl) errEl.classList.remove('hidden');
                         input.value = '';
                     }
                 }
@@ -459,47 +481,33 @@
 
         function renderDashboard() {
             const allUnlocked = unlockedFiles.kaan && unlockedFiles.yasin && unlockedFiles.arda;
-            
+
             let html = `
                 <div class="border-b border-green-700 pb-4 mb-6">
                     <h1 class="text-3xl font-bold glitch-text">OPERASYON MERKEZİ</h1>
                     <p class="text-sm">KULLANICI: ATA | DURUM: <span class="${allUnlocked ? 'text-green-500' : 'text-yellow-500'}">${allUnlocked ? 'TAM SENKRONİZASYON' : 'BEKLEMEDE'}</span></p>
                 </div>
                 <p class="mb-6">Aşağıdaki saha birleşimi protokollerini inceleyin.</p>
-                
                 <div class="flex flex-col gap-4 max-w-md">
+                    <button onclick="openLog('kaan')" class="btn-terminal p-4 text-left flex justify-between items-center">
+                        <span>[1] ÇAĞRI PROTOKOLÜ (KAAN)</span>
+                        <span class="text-xs ${unlockedFiles.kaan ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.kaan ? 'OKUNDU' : 'YENİ'} ]</span>
+                    </button>
+                    <button onclick="openLog('yasin')" class="btn-terminal p-4 text-left flex justify-between items-center">
+                        <span>[2] SİSTEM BÜTÜNLÜĞÜ (YASİN)</span>
+                        <span class="text-xs ${unlockedFiles.yasin ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.yasin ? 'OKUNDU' : 'YENİ'} ]</span>
+                    </button>
+                    <button onclick="openLog('arda')" class="btn-terminal p-4 text-left flex justify-between items-center">
+                        <span>[3] KOLEKTİF ZORUNLULUK (ARDA)</span>
+                        <span class="text-xs ${unlockedFiles.arda ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.arda ? 'OKUNDU' : 'YENİ'} ]</span>
+                    </button>
+                </div>
             `;
-
-            // KAAN
-            html += `
-                <button onclick="openLog('kaan')" class="btn-terminal p-4 text-left flex justify-between items-center">
-                    <span>[1] ÇAĞRI PROTOKOLÜ (KAAN)</span>
-                    <span class="text-xs ${unlockedFiles.kaan ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.kaan ? 'OKUNDU' : 'YENİ'} ]</span>
-                </button>
-            `;
-
-            // YASIN
-            html += `
-                <button onclick="openLog('yasin')" class="btn-terminal p-4 text-left flex justify-between items-center">
-                    <span>[2] SİSTEM BÜTÜNLÜĞÜ (YASİN)</span>
-                    <span class="text-xs ${unlockedFiles.yasin ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.yasin ? 'OKUNDU' : 'YENİ'} ]</span>
-                </button>
-            `;
-
-            // ARDA
-            html += `
-                <button onclick="openLog('arda')" class="btn-terminal p-4 text-left flex justify-between items-center">
-                    <span>[3] KOLEKTİF ZORUNLULUK (ARDA)</span>
-                    <span class="text-xs ${unlockedFiles.arda ? 'text-green-500' : 'text-gray-400'}">[ ${unlockedFiles.arda ? 'OKUNDU' : 'YENİ'} ]</span>
-                </button>
-            `;
-
-            html += `</div>`;
 
             if (allUnlocked) {
                 html += `
                     <div class="mt-12 p-6 border-2 border-green-500 bg-green-900 bg-opacity-20 animate-pulse">
-                        <h2 class="text-2xl font-bold text-green-400 mb-2">>>> TÜM BİLDİRİLER ONAYLANDI <<<</h2>
+                        <h2 class="text-2xl font-bold text-green-400 mb-2">&gt;&gt;&gt; TÜM BİLDİRİLER ONAYLANDI &lt;&lt;&lt;</h2>
                         <p>SİSTEM BÜTÜNLÜĞÜ %100 SAĞLANDI.</p>
                         <p>TAKIM DENGESİ: OPTİMUM.</p>
                         <p class="text-red-400 font-bold mt-2">AYKUT ELMAS RİSKİ: SIFIRLANDI.</p>
@@ -510,9 +518,21 @@
             }
 
             app.innerHTML = html;
+
             const existingOverlay = document.getElementById('tvCloseOverlay');
             if (existingOverlay) existingOverlay.remove();
-            if (allUnlocked) triggerTvCloseSequence();
+
+            // FIX #4: defer triggerTvCloseSequence until after the browser has painted.
+            // 5 000 ms delay gives the user time to read the final message before the screen dims.
+            if (allUnlocked) {
+                setTimeout(() => {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            triggerTvCloseSequence();
+                        });
+                    });
+                }, 5000);
+            }
         }
 
         function triggerTvCloseSequence() {
@@ -532,8 +552,11 @@
             `;
             container.appendChild(overlay);
 
-            window.requestAnimationFrame(() => {
-                overlay.classList.add('active');
+            // FIX #4: double-rAF guarantees the element is painted before we add .active
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.classList.add('active');
+                });
             });
 
             setTimeout(() => {
@@ -550,7 +573,7 @@
 
         async function openLog(logName) {
             if (isTyping) return;
-            
+
             app.innerHTML = `
                 <div class="mb-6 flex justify-between items-center border-b border-green-700 pb-2">
                     <span class="text-sm text-gray-400">ŞİFRELİ METİN ÇÖZÜLÜYOR...</span>
@@ -563,17 +586,13 @@
             const backBtn = document.getElementById('backBtn');
 
             await typeText(logContent, loreData[logName], 15);
-            
+
             unlockedFiles[logName] = true;
             backBtn.classList.remove('hidden');
         }
 
         // Start App
         window.onload = renderBoot;
-
     </script>
 </body>
 </html>
-
-```
-
