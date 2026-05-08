@@ -117,6 +117,108 @@
             z-index: 48;
         }
 
+        .tv-shell {
+            position: relative;
+            width: min(100%, 1100px);
+            margin: 0 auto;
+            padding: 2rem;
+            border: 4px solid rgba(0,255,0,0.65);
+            border-radius: 34px;
+            background: radial-gradient(circle at top, rgba(0,255,0,0.08), rgba(0,0,0,0.96));
+            box-shadow: 0 0 80px rgba(0,255,0,0.25), inset 0 0 60px rgba(0,255,0,0.08);
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .tv-shell::before,
+        .tv-shell::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70%;
+            height: 12px;
+            border-radius: 999px;
+            background: rgba(0,255,0,0.15);
+            box-shadow: inset 0 0 10px rgba(0,255,0,0.25);
+        }
+
+        .tv-shell::before {
+            top: 8px;
+            width: 60%;
+        }
+
+        .tv-shell::after {
+            bottom: 8px;
+            width: 50%;
+        }
+
+        .tv-panel {
+            position: relative;
+            border: 2px solid rgba(0,255,0,0.5);
+            border-radius: 24px;
+            padding: 1.5rem;
+            background: rgba(0,0,0,0.92);
+            box-shadow: inset 0 0 50px rgba(0,255,0,0.08);
+            overflow: hidden;
+        }
+
+        .tv-screen-glow {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at center, rgba(0,255,0,0.08), transparent 40%);
+            z-index: 5;
+        }
+
+        .tv-close-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #0f0;
+            background: rgba(0,0,0,0.92);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.45s ease;
+            z-index: 60;
+        }
+
+        .tv-close-overlay.active {
+            opacity: 1;
+        }
+
+        .tv-close-screen {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.8));
+            mix-blend-mode: overlay;
+            opacity: 0.45;
+            animation: tvstatic 0.15s infinite alternate;
+            z-index: 59;
+        }
+
+        .tv-close-content {
+            position: relative;
+            z-index: 61;
+            max-width: 90%;
+        }
+
+        .tv-shell.power-off .tv-panel {
+            transform: scaleY(0.15) translateY(35%);
+            opacity: 0.15;
+            filter: blur(1px);
+            transition: transform 0.8s ease-in, opacity 0.8s ease-in, filter 0.8s ease-in;
+        }
+
+        @keyframes tvstatic {
+            from { opacity: 0.35; }
+            to { opacity: 0.55; transform: translateY(-2px); }
+        }
+
         .btn-terminal {
             border: 1px solid #0f0;
             background: rgba(0, 255, 0, 0.1);
@@ -146,8 +248,13 @@
     <div class="flicker"></div>
     <div class="crt-overlay"></div>
 
-    <div id="app" class="p-6 md:p-12 h-full flex flex-col max-w-4xl mx-auto relative z-10 overflow-y-auto text-xl md:text-2xl">
-        <!-- JS will inject content here -->
+    <div class="tv-shell">
+        <div class="tv-panel">
+            <div id="app" class="p-6 md:p-12 h-full flex flex-col max-w-4xl mx-auto relative z-10 overflow-y-auto text-xl md:text-2xl">
+                <!-- JS will inject content here -->
+            </div>
+            <div class="tv-screen-glow"></div>
+        </div>
     </div>
 
     <script>
@@ -403,6 +510,42 @@
             }
 
             app.innerHTML = html;
+            const existingOverlay = document.getElementById('tvCloseOverlay');
+            if (existingOverlay) existingOverlay.remove();
+            if (allUnlocked) triggerTvCloseSequence();
+        }
+
+        function triggerTvCloseSequence() {
+            const container = document.querySelector('.tv-shell');
+            if (!container || document.getElementById('tvCloseOverlay')) return;
+
+            const overlay = document.createElement('div');
+            overlay.id = 'tvCloseOverlay';
+            overlay.className = 'tv-close-overlay';
+            overlay.innerHTML = `
+                <div class="tv-close-screen"></div>
+                <div class="tv-close-content">
+                    <div class="text-3xl glitch-text mb-3">SİSTEM KAPATILIYOR...</div>
+                    <div class="text-sm text-green-200">TERMİNAL GÜVENLİ MODA GEÇİYOR.</div>
+                    <div class="mt-4 text-xs uppercase tracking-[0.3em]">GÜÇ SÜRECİ BAŞLATILDI</div>
+                </div>
+            `;
+            container.appendChild(overlay);
+
+            window.requestAnimationFrame(() => {
+                overlay.classList.add('active');
+            });
+
+            setTimeout(() => {
+                container.classList.add('power-off');
+                const content = overlay.querySelector('.tv-close-content');
+                if (content) {
+                    content.innerHTML = `
+                        <div class="text-3xl font-bold">⚠️ TV SİSTEMİ KAPANDI ⚠️</div>
+                        <div class="mt-2 text-sm">Saha protokolü tamamlandı. Terminal kapanıyor...</div>
+                    `;
+                }
+            }, 2400);
         }
 
         async function openLog(logName) {
